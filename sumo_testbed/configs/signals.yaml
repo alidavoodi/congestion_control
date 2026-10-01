@@ -1,0 +1,58 @@
+# Fixed-time / actuated signal plan settings (grid3x3).
+# The phase sequence is taken from the network's default program (split
+# phasing N -> E -> S -> W, protected) and never changed.
+
+network: grid3x3
+out_dir: signals                 # signals/<plan>.add.xml
+results_dir: results/signals
+
+constraints:
+  yellow_s: 3
+  all_red_s: 2
+  min_green_s: 7
+  max_green_s: 60
+  cycle_min_s: 40
+  cycle_max_s: 120
+  common_cycle: true             # one cycle for all junctions (coordination)
+
+webster:
+  design_scenario: normal_peak   # D1
+  seeds: [1, 2, 3]               # runs of the default plan used to measure E1 flows
+  flow_window: [2100, 3900]      # 30-min peak (100% demand) [s]
+  lost_time_per_phase_s: 5       # = yellow + all-red (start-up loss ~ end gain)
+  # Saturation flow, measured from E1 discharge headways in saturated greens
+  # (scripts/build_signals.py saturation). null -> run the measurement.
+  saturation_flow_vphpl: null
+  saturation_measurement:
+    multiplier: 1.2              # constant demand, default plan
+    seed: 1
+    window: [900, 4500]
+    min_queue_m: 40              # queue at green start must reach this far
+    skip_first: 4                # ignore start-up headways of the first vehicles
+    max_headway_s: 6             # gaps longer than this end a saturated discharge
+
+optimisation:
+  scenario: normal_peak
+  train_seeds: [1, 2, 3]
+  evaluations: 240               # total candidate plans (config: 150-300)
+  popsize: null                  # null -> CMA-ES default (4 + 3 ln n)
+  sigma0: 0.25                   # initial step in normalised variable space
+  workers: 4
+  use_libsumo: true
+  penalty:
+    gridlock_veh_h: 1000         # added to TTS if any training run gridlocks
+    unserved_veh_h_per_veh: 0.5  # per vehicle not arrived at the end of the run
+  seed: 12345                    # optimiser RNG
+
+actuated:
+  # SUMO type="actuated" parameters (gap-based extension on the stop-line loops)
+  max_gap_s: 3.0                 # extend green while gaps < max-gap
+  passing_time_s: 1.9            # SUMO default
+  detector_from: e1              # use the E1 stop-line loops (custom detectors)
+  show_detectors: false
+
+validation:
+  held_out_seeds: [4, 5, 6, 7, 8, 9, 10]
+  scenarios: [normal_peak, day_to_day, directional_shift, surge]
+  plans: [default, webster, optimised, actuated]
+  workers: 4

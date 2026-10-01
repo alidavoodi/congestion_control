@@ -1,0 +1,178 @@
+# Phase 0 configuration: baseline signalised network, normal conditions.
+# Every numeric parameter used by the code lives here. Paths are relative to
+# the project root (the folder containing this `configs/` directory).
+
+paths:
+  networks_dir: networks
+  results_dir: results/phase0
+  calibration_dir: results/calibration
+  logs_dir: logs
+  demand_levels_file: configs/demand_levels.yaml
+
+sumo:
+  use_libsumo: false          # true -> import libsumo instead of traci (faster, no GUI)
+  step_length: 1.0            # s (0.5 also supported)
+  time_to_teleport: -1        # -1 = never teleport; gridlock must stay visible
+  collision_action: warn
+  extra_args:
+    - --no-step-log
+    - --duration-log.disable
+  edgedata_period_s: 300      # edgedata aggregation period (5 min)
+  gui_delay_ms: 100
+
+# Network definitions (netgenerate). Keys under `netgenerate` map 1:1 to
+# netgenerate options (`--<key> <value>`).
+networks:
+  grid3x3:
+    netgenerate:
+      grid: true
+      grid.x-number: 3
+      grid.y-number: 3
+      grid.length: 200
+      grid.attach-length: 200
+      default.lanenumber: 2
+      default.speed: 13.89
+      no-turnarounds: true      # no U-turns at junctions
+  corridor:
+    netgenerate:
+      grid: true
+      grid.x-number: 5
+      grid.y-number: 1
+      grid.length: 200
+      grid.attach-length: 200
+      default.lanenumber: 2
+      default.speed: 13.89
+      no-turnarounds: true      # no U-turns at junctions
+
+signals:
+  # "incoming" = split phasing: every approach gets its own protected green
+  # (no conflicting greens with 2 shared lanes). Chosen design for Phase 0.
+  layout: incoming
+  default_cycle_s: 90         # cycle of SUMO's generated (default) program
+  yellow_s: 3
+  all_red_s: 2
+  min_green_s: 7
+  max_green_s: 50             # used by actuated (and later controllers)
+  webster:
+    min_cycle_s: 40
+    max_cycle_s: 150
+  actuated:
+    max_gap_s: 3.0            # gap-out threshold on stop-line loops
+    passing_time_s: 1.9       # SUMO actuated 'passing-time'
+
+detectors:
+  e1:
+    setback_m: 2.0            # distance upstream of stop line
+    period_s: 90              # output aggregation = 1 default cycle
+  e2:
+    period_s: 10              # file output period (TraCI is read every step)
+    halting_speed_mps: 1.39   # SUMO default jam threshold
+    jam_threshold_m: 10.0     # SUMO default
+
+demand:
+  network: grid3x3            # demand scenarios are built for this network
+  out_dir: demand             # demand/<scenario>/seed_<k>.rou.xml
+  od_file: configs/demand/od_base.csv   # base OD (veh/h at multiplier 1.0)
+  # Base OD pattern (used to (re)generate od_file with --write-od).
+  # Trips enter/leave only via fringe edges; U-turns and same-side trips are
+  # excluded. Each entry edge sends base_origin_flow_vph, split into
+  # through (opposite side) and turning (adjacent side) traffic.
+  base_origin_flow_vph: 300
+  through_share: 0.6          # 60% straight-through, 40% turning
+  slice_s: 300                # flows are time-sliced in 5-min intervals
+  cooldown_max_s: 1800        # after insertion stops: run until empty, cap 30 min
+  vehicle_type:
+    id: car
+    accel: 2.6
+    decel: 4.5
+    sigma: 0.5
+    length: 5.0
+    minGap: 2.5
+    maxSpeed: 13.89
+  insertion:
+    depart_lane: best
+    depart_speed: max
+  # Time profiles, as segments [duration_s, start_factor, end_factor]. Factors
+  # are evaluated at slice midpoints (linear ramps -> 5-min steps).
+  # `analysis` = [start_s, end_s] window used for metrics.
+  profiles:
+    constant:                 # calibration and sanity checks
+      segments: [[900, 1.0, 1.0], [3600, 1.0, 1.0]]
+      analysis: [900, 4500]
+    peak:                     # 15' warm-up 50%, 20' ramp, 30' peak, 20' ramp down
+      segments: [[900, 0.5, 0.5], [1200, 0.5, 1.0], [1800, 1.0, 1.0], [1200, 1.0, 0.5]]
+      analysis: [900, 5100]
+  # Provisional multiplier for smoke tests before calibration exists.
+  smoke_multiplier: 0.6
+
+scenarios:
+  seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  normal_peak:                # D1
+    level: normal
+    profile: peak
+  day_to_day:                 # D2: each seed is a different "day"
+    level: normal
+    profile: peak
+    total_sd: 0.10            # total multiplier ~ N(1, sd), clipped
+    total_clip: [0.8, 1.2]
+    cell_sigma: 0.15          # per-OD-cell lognormal noise (mean 1)
+  directional_shift:          # D3: same total as D1, 70% of trips W->E or S->N
+    level: normal
+    profile: peak
+    main_share: 0.7
+    main_directions: [[W, E], [S, N]]
+  surge:                      # D4: event surge on trips entering from one side
+    level: normal
+    profile: peak
+    side: W
+    start_s: 2100             # beginning of the peak (900 + 1200)
+    duration_s: 1800
+    increase: 0.4             # +40%; raised in steps until spillback appears
+    increase_step: 0.1
+    increase_max: 1.5
+    check_seed: 1
+  light:
+    level: light
+    profile: constant
+  oversaturated:
+    level: oversaturated
+    profile: constant
+
+metrics:
+  queue_sample_s: 10
+  spillback_ratio: 0.9
+  spillback_min_duration_s: 10
+  gridlock_speed_mps: 1.0
+  gridlock_min_duration_s: 120
+
+control:
+  # When the runner calls controller.observe/act: "cycle" (end of each cycle
+  # per junction) or an integer number of seconds.
+  interval: cycle
+
+calibration:
+  network: grid3x3
+  controller: default
+  multipliers: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
+  seeds: [1, 2, 3]
+  profile: constant
+  workers: 4
+  # Knee rule: first multiplier m_i whose marginal delay slope
+  # (d_i - d_{i-1}) / (m_i - m_{i-1}) exceeds knee_slope_factor x the average
+  # slope below it, (d_{i-1} - d_0) / (m_{i-1} - m_0).
+  knee_slope_factor: 2.0
+  level_factors:
+    light: 0.5
+    normal: 0.9
+    oversaturated: 1.2
+
+experiment:
+  networks: [grid3x3, corridor]
+  demand_levels: [light, normal, oversaturated]
+  controllers: [default, webster, actuated]
+  seeds: 5
+  base_seed: 1
+  workers: 4
+
+smoke_test:
+  duration_s: 300

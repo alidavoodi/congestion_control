@@ -1,0 +1,16 @@
+# Written by scripts/calibrate_demand.py
+knee: 1.0
+knee_rule: first multiplier whose marginal delay slope exceeds 2.0x the average slope
+  below it
+knee_by_rule: 1.0
+throughput_saturation_indicator: 1.3
+base_origin_flow_vph: 300
+level_factors:
+  light: 0.5
+  normal: 0.9
+  oversaturated: 1.2
+levels:
+  light: 0.5
+  normal: 0.9
+  oversaturated: 1.2
+created: '2026-10-02'

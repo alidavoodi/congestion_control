@@ -1,0 +1,30 @@
+scenario: surge
+network: grid3x3
+level: normal
+multiplier: 0.9
+profile: peak
+analysis_window:
+- 900.0
+- 5100.0
+insertion_end: 5100.0
+seeds:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+- 10
+sumo_seed: equal to the file's seed (seed_<k> -> sumo --seed k)
+od_file: configs/demand/od_base.csv
+surge:
+  side: W
+  start_s: 2100.0
+  duration_s: 1800.0
+  increase_configured: 0.4
+  increase_final: 0.6
+  check_seed: 1
+  check_spillbacks_during_surge: 4

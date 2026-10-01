@@ -1,0 +1,43 @@
+scenario: day_to_day
+network: grid3x3
+level: normal
+multiplier: 0.9
+profile: peak
+analysis_window:
+- 900.0
+- 5100.0
+insertion_end: 5100.0
+seeds:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+- 10
+sumo_seed: equal to the file's seed (seed_<k> -> sumo --seed k)
+od_file: configs/demand/od_base.csv
+draws:
+- seed: 1
+  total_factor: 1.053335
+- seed: 2
+  total_factor: 1.019787
+- seed: 3
+  total_factor: 1.001755
+- seed: 4
+  total_factor: 0.959126
+- seed: 5
+  total_factor: 1.042604
+- seed: 6
+  total_factor: 0.853855
+- seed: 7
+  total_factor: 1.034736
+- seed: 8
+  total_factor: 0.952856
+- seed: 9
+  total_factor: 1.079111
+- seed: 10
+  total_factor: 1.012898
